@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang=en><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width'>
+<title>Instagram Likes</title>
+<style>
+body {font-family:Arial;color:#000;background-color:#FFF;padding:0;margin:0;font-size:14px;line-height:16px;}
+#container {display:flex;flex-flow:row wrap;align-items:start;position:relative;width:1280px;max-width:100%;margin:auto;}
+.box {flex:1 1 302px;margin:8px;border:1px solid #c4c4c4;}
+.head {display:flex;align-items:center;height:48px;word-wrap:break-word;}
+.head img {height:48px;width:auto;float:left;margin:0 6px 0 0;}
+.head a[following=true] {color:blue;}
+.head a[following=false] {color:red;}
+
+.carousel {position:relative;}
+.carousel span {position:absolute;top:42%;right:0;height:32px;width:30px;font-size:32px;line-height:28px;font-weight:bold;color:#FFF;background-color:#000;border-radius:16px;text-align:center;cursor:pointer;}
+.carousel span:hover {color:#000;background-color:#FFF;}
+.carousel img {width:100%;cursor:pointer;}
+.info {font-size:12px;line-height:14px;overflow-wrap:anywhere;white-space:pre-wrap;}
+
+#fullViewImg {max-height:100%;max-width:100%;}
+.viewer {display:none;position:fixed;z-index:1;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,.75);justify-content:center;align-items:center;}
+.viewer span {display:flex;position:absolute;font-size:10vh;line-height:8vh;font-weight:bold;width:10%;color:rgba(145,145,145,.2);cursor:pointer;}
+.viewer span[close] {top:0;right:0;height:12.5%;justify-content:end;align-items:start;}
+.viewer span[next] {top:37.5%;right:0;height:25%;justify-content:end;align-items:center;}
+.viewer span[previous] {top:37.5%;left:0;height:25%;justify-content:start;align-items:center;}
+</style></head><body>
+<div id=container></div>
+<div class=viewer id=vwr><img id=fullViewImg /><span previous onclick=turnPage(-1)>&#8249;</span><span next onclick=turnPage(1)>&#8250;</span><span close onclick=viewer('none')>&times;</span></div>
+
+<script>
+var DIR = 'images/';
+
+fetch('likes.json').then(z => z.json()).then(e => prop(e));
+
+var fullViewImg = document.getElementById('fullViewImg');
+var viewerbg = document.getElementById('vwr');
+var images, imgIndex = 1;
+
+function prop(y) {
+  const container = document.getElementById('container');
+  for(const x of y) {
+    let box = document.createElement('div');
+    box.classList.add('box');
+    let head = document.createElement('div');
+    head.classList.add('head');
+    let profilePic = document.createElement('img');
+    profilePic.src = DIR + 'profiles/' + x.user.username + '.jpg';
+    //profilePic.src = x.user.profile_pic_url;
+    head.appendChild(profilePic);
+    head.innerHTML += `<span><strong>${x.user.full_name}</strong> (<a following=${x.user.friendship_status.following} target=_blank href="https://www.instagram.com/p/${x.code}/">${x.user.username}</a>)</span>`;
+    box.appendChild(head);
+    let carousel = document.createElement('div');
+    carousel.classList.add('carousel');
+    const d = new Date(+x['taken_at'] * 1000), yyyy = d.getUTCFullYear(), mm = ('0' + (d.getUTCMonth() + 1)).slice(-2), dd = ('0' + d.getUTCDate()).slice(-2);
+    const name = yyyy + '-' + mm + '-' + dd + '_' + x['user']['username'] + '_' + x['code'];
+    if(x['carousel_media']) {
+      let imgNum = 0;
+      for(const z of x['carousel_media']) {
+        let img = document.createElement('img');
+        img.classList.add('image');
+        img.setAttribute('onclick','viewer("flex",' + imgIndex + ')');
+        imgIndex++;
+        img.src = DIR + name + '-' + imgNum + '.jpg';
+        //img.src = z['image_versions2']['candidates'][0]['url'];
+        if(imgNum > 0) img.style.display = 'none';
+        imgNum++;
+        carousel.appendChild(img);
+      }
+      carousel.innerHTML += '<span onclick=carouselImgs(this.parentNode)>&#8250;</span>';
+    }
+    else {
+      let img = document.createElement('img');
+      img.classList.add('image');
+      img.setAttribute('onclick','viewer("flex",' + imgIndex + ')');
+      imgIndex++;
+      img.src = DIR + name + '.jpg';
+      //img.src = x['image_versions2']['candidates'][0]['url'];
+      carousel.appendChild(img);
+    }
+    box.appendChild(carousel);
+    let info = document.createElement('div');
+    info.classList.add('info');
+    info.innerText = `${x.like_count} Likes - ${x.comment_count} Comments`;
+    if(x.location) info.innerText += ' - ' + x.location.name;
+    if(x.caption) info.innerText += '\n\n' + x.caption.text.replace(/\s\s+/gm,' ').replace(/^.$/gm,'').replace(/^#.*$/gm,'').replace(/^\n\n+$/gm,'');
+    box.appendChild(info);
+    container.appendChild(box);
+  }
+  images = document.getElementsByClassName('image');
+}
+
+viewerbg.addEventListener('click',function(event) {if(event.target.id === 'vwr') viewer('none')},false); //click background to close viewer
+document.addEventListener('keydown',event => {
+  if(event.repeat || viewerbg.style.display !== 'flex') return;
+  switch(event.key) {
+    case "Escape": viewer('none');break;
+    case "ArrowLeft": turnPage(-1);break;
+    case "ArrowRight": turnPage(1);break;
+    default: turnPage(1);
+  }
+},false);
+
+function carouselImgs(b) {
+  const imgs = b.getElementsByClassName('image');
+  var nextImg = false;
+  for(const i of imgs) {
+    if(nextImg) {
+      i.style.display = null;
+      return;
+    }
+    if(i.style.display !== 'none') {
+      i.style.display = 'none';
+      nextImg = true;
+    }
+  }
+  imgs[0].style.display = null;
+}
+
+function viewer(openOrClose,pageNum=1) {
+  viewerbg.style.display = openOrClose;
+  if(openOrClose === 'flex') { //open
+    imgIndex = pageNum;
+    turnPage(0);
+  }
+}
+
+function turnPage(previousOrNext) {
+  imgIndex += previousOrNext;
+  if(imgIndex > images.length) imgIndex = 1;
+  if(imgIndex < 1) imgIndex = images.length;
+  fullViewImg.src = images[imgIndex-1].getAttribute('src');
+}
+
+</script></body></html>
